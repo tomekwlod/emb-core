@@ -1,0 +1,71 @@
+{
+	"mappings":{
+		"doc":{
+			"properties":{
+				"Abstract":{
+					"type":"nested",
+					"properties":{
+						"Text": {
+							"type":"text"
+						},
+						"WordCount": {
+							"type":"keyword"
+						},
+						"Type": {
+							"type":"keyword"
+						},
+						"Language": {
+							"type":"keyword"
+						}
+					}
+				},
+				"AccessionNumber":{
+					"type":"long"
+				},
+				"AlternateTitle":{
+					"type":"text"
+				},
+				"Contributors":{
+					"type":"nested",
+					"properties":{
+						"Order": {
+							"type":"short"
+						},
+						"Role": {
+							"type":"keyword"
+						},
+						"NormalizedName": {
+							"type":"text"
+						},
+						"LastName": {
+							"type":"keyword"
+						},
+						"FirstName": {
+							"type":"keyword"
+						},
+						"EmailAddress": {
+							"type":"keyword"
+						},
+						"RefCode": {
+							"type":"nested",
+							"properties":{
+								"Type":{
+									"type":"keyword"
+								},
+								"ID":{
+									"type":"keyword"
+								}
+							}
+						},
+						"PersonTitle": {
+							"type":"text"
+						},
+						"NameSuffix": {
+							"type":"text"
+						}
+					}
+				}
+			}
+		}
+	}
+}
