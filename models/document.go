@@ -9,7 +9,7 @@ type Documents struct {
 
 type Document struct {
 	// XMLName xml.Name `xml:"DocInfo"`
-	Type                 string           `json:"_type"`
+	Type                 string           `json:"type"`
 	TitleInfo            []TitleInfo      `xml:"DocInfo>TitleInfo>Title"`
 	AlternateTitle       []TitleInfo      `xml:"DocInfo>TitleInfo>AlternateTitle"`
 	AccessionNumber      int              `xml:"DocInfo>AccessionNumber"`

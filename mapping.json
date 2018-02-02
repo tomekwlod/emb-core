@@ -22,8 +22,27 @@
 				"AccessionNumber":{
 					"type":"long"
 				},
-				"AlternateTitle":{
-					"type":"text"
+				"AlternateTitle" : {
+					"properties" : {
+						"Language" : {
+							"type" : "text",
+							"fields" : {
+								"keyword" : {
+									"type" : "keyword",
+									"ignore_above" : 256
+								}
+							}
+						},
+						"Title" : {
+							"type" : "text",
+							"fields" : {
+								"keyword" : {
+									"type" : "keyword",
+									"ignore_above" : 256
+								}
+							}
+						}
+					}
 				},
 				"Contributors":{
 					"type":"nested",
@@ -34,14 +53,32 @@
 						"Role": {
 							"type":"keyword"
 						},
-						"NormalizedName": {
-							"type":"text"
+						"NormalizedName" : {
+							"type" : "text",
+							"fields" : {
+								"keyword" : {
+									"type" : "keyword",
+									"ignore_above" : 256
+								}
+							}
 						},
-						"LastName": {
-							"type":"keyword"
+						"LastName" : {
+							"type" : "text",
+							"fields" : {
+								"keyword" : {
+									"type" : "keyword",
+									"ignore_above" : 256
+								}
+							}
 						},
-						"FirstName": {
-							"type":"keyword"
+						"FirstName" : {
+							"type" : "text",
+							"fields" : {
+								"keyword" : {
+									"type" : "keyword",
+									"ignore_above" : 256
+								}
+							}
 						},
 						"EmailAddress": {
 							"type":"keyword"
