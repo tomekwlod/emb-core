@@ -11,26 +11,19 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/tomekwlod/emb-core/config"
+	"github.com/jinzhu/configor"
 	"github.com/tomekwlod/emb-core/models"
 	"github.com/tomekwlod/utils"
 	"github.com/tomekwlod/utils/ftp"
 	elastic "gopkg.in/olivere/elastic.v6"
 )
 
-const ftpAddr = "123.456.123.432"
-const ftpPort = 21
-const ftpUsername = "username"
-const ftpPassword = `password`
-
 func main() {
-	ftpClient := ftp.Client{
-		Addr: ftpAddr,
-		Port: ftpPort,
-		Auth: ftp.Auth{
-			Username: ftpUsername,
-			Password: ftpPassword,
-		},
+	ftpClient := ftp.Client{}
+	configor.Load(&ftpClient, "config/ftp.yml")
+
+	if ftpClient.Addr == "" {
+		panic("Couldn't load configuration properly")
 	}
 
 	ftpIn := &ftp.SearchInput{
@@ -77,7 +70,7 @@ func main() {
 		}
 
 		// elastic search client
-		client := config.Client()
+		client := elasticClient()
 
 		// Use the IndexExists service to check if a specified index exists.
 		exists, err := client.IndexExists("dmcs").Do(context.Background())
@@ -165,4 +158,43 @@ func main() {
 	}
 
 	log.Printf("All done")
+}
+
+func elasticClient() (client *elastic.Client) {
+	// pass address as a param
+	address := "http://127.0.0.1:9200"
+
+	// not sure
+	errorlog := log.New(os.Stdout, "APP ", log.LstdFlags)
+
+	// Obtain a client. You can also provide your own HTTP client here.
+	client, err := elastic.NewClient(elastic.SetURL(address), elastic.SetErrorLog(errorlog))
+	if err != nil {
+		// Handle error
+		panic(err)
+	}
+
+	// Trace request and response details like this
+	//client.SetTracer(log.New(os.Stdout, "", 0))
+
+	// Ping the Elasticsearch server to get e.g. the version number
+	info, code, err := client.Ping(address).Do(context.Background())
+	if err != nil {
+		// Handle error
+		fmt.Println(info)
+		fmt.Println(code)
+		panic(err)
+	}
+	// fmt.Printf("Elasticsearch returned with code %d and version %s\n", code, info.Version.Number)
+
+	// Getting the ES version number is quite common, so there's a shortcut
+	esversion, err := client.ElasticsearchVersion(address)
+	if err != nil {
+		// Handle error
+		fmt.Println(esversion)
+		panic(err)
+	}
+	// fmt.Printf("Elasticsearch version %s\n", esversion)
+
+	return
 }
