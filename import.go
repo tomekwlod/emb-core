@@ -19,6 +19,7 @@ import (
 )
 
 func main() {
+	// loading the credentials and other FTP settings
 	ftpClient := ftp.Client{}
 	configor.Load(&ftpClient, "config/ftp.yml")
 
@@ -26,11 +27,13 @@ func main() {
 		panic("Couldn't load configuration properly")
 	}
 
+	// what and where exactly to search
 	ftpIn := &ftp.SearchInput{
 		Path:   "/",
 		Suffix: ".xml",
 	}
 
+	// give all files with above conditions
 	list, err := ftpClient.FTPFilesList(ftpIn)
 	if err != nil {
 		panic(err)
@@ -38,6 +41,38 @@ func main() {
 
 	log.Println("Found " + strconv.Itoa(len(list)) + " remote file(s) in " + ftpIn.Path + "\n")
 
+	// elastic search client
+	client, err := newESClient("http://127.0.0.1:9200")
+	if err != nil {
+		panic(err)
+	}
+
+	// Use the IndexExists service to check if a specified index exists.
+	exists, err := client.IndexExists("dmcs").Do(context.Background())
+	if err != nil {
+		// Handle error
+		panic(err)
+	}
+	if !exists {
+		log.Println("No mapping found. Creating one")
+
+		// Create a new index
+		file, err := utils.ReadWholeFile("./mapping.json")
+		if err != nil {
+			log.Printf("No mapping file found. Skipping. %v\n", err)
+		} else {
+			createIndex, err := client.CreateIndex("dmcs").Body(string(file)).Do(context.Background())
+			if err != nil {
+				// Handle error
+				panic(err)
+			}
+			if !createIndex.Acknowledged {
+				panic("Mapping couldn't be acknowledged")
+			}
+		}
+	}
+
+	// download each file, convert it to JSON and index in ES
 	for _, file := range list {
 		targetFile := "./" + file.Name
 		remotePath := filepath.Join(ftpIn.Path, file.Name)
@@ -65,36 +100,8 @@ func main() {
 		var doc models.Documents
 		err = xml.Unmarshal(b, &doc)
 		if err != nil {
-			// for testing purposes
+			// for debuging purposes only
 			panic(err)
-		}
-
-		// elastic search client
-		client := elasticClient()
-
-		// Use the IndexExists service to check if a specified index exists.
-		exists, err := client.IndexExists("dmcs").Do(context.Background())
-		if err != nil {
-			// Handle error
-			panic(err)
-		}
-		if !exists {
-			log.Println("No mapping found. Creating one")
-
-			// Create a new index
-			file, err := utils.ReadWholeFile("./mapping.json")
-			if err != nil {
-				log.Printf("No mapping file found. Skipping. %v\n", err)
-			} else {
-				createIndex, err := client.CreateIndex("dmcs").Body(string(file)).Do(context.Background())
-				if err != nil {
-					// Handle error
-					panic(err)
-				}
-				if !createIndex.Acknowledged {
-					panic("Mapping couldn't be acknowledged")
-				}
-			}
 		}
 
 		log.Printf("Inserting %d rows\n", len(doc.Documents))
@@ -104,7 +111,10 @@ func main() {
 
 		req := client.Bulk().Index("dmcs").Type("doc")
 		for _, row := range doc.Documents {
-			// row.Type = "embase"
+			row.Type = "embase"
+			row.AlertID = doc.AlertID
+			row.AlertName = doc.AlertName
+
 			// this also works fine but a lot slower
 			// _, err := client.Index().Index("dmcs").Type("doc").
 			// 	Id(strconv.Itoa(row.AccessionNumber)).
@@ -144,8 +154,9 @@ func main() {
 			duration,
 		)
 
-		t := time.Now()
-		renameTo := filepath.Join("archive", remotePath+"_"+t.Format("20060102150405"))
+		// t := time.Now()
+		// renameTo := filepath.Join("archive", t.Format("2006-01-02T150405")+"_"+file.Name)
+		renameTo := filepath.Join("archive", file.Name)
 
 		err = ftpClient.Rename(remotePath, renameTo)
 		if err != nil {
@@ -154,47 +165,40 @@ func main() {
 			log.Printf("Renaming source file from `%s` to `%s`", remotePath, renameTo)
 		}
 
+		// just for spacing
 		fmt.Println()
+
+		// removing temp file
+		os.RemoveAll(targetFile)
 	}
 
 	log.Printf("All done")
 }
 
-func elasticClient() (client *elastic.Client) {
-	// pass address as a param
-	address := "http://127.0.0.1:9200"
-
+func newESClient(address string) (client *elastic.Client, err error) {
 	// not sure
 	errorlog := log.New(os.Stdout, "APP ", log.LstdFlags)
 
 	// Obtain a client. You can also provide your own HTTP client here.
-	client, err := elastic.NewClient(elastic.SetURL(address), elastic.SetErrorLog(errorlog))
+	client, err = elastic.NewClient(elastic.SetURL(address), elastic.SetErrorLog(errorlog))
 	if err != nil {
-		// Handle error
-		panic(err)
+		return
 	}
 
 	// Trace request and response details like this
 	//client.SetTracer(log.New(os.Stdout, "", 0))
 
-	// Ping the Elasticsearch server to get e.g. the version number
-	info, code, err := client.Ping(address).Do(context.Background())
+	// Ping the Elasticsearch server to get info, code, and error if any
+	_, _, err = client.Ping(address).Do(context.Background())
 	if err != nil {
-		// Handle error
-		fmt.Println(info)
-		fmt.Println(code)
-		panic(err)
+		return
 	}
-	// fmt.Printf("Elasticsearch returned with code %d and version %s\n", code, info.Version.Number)
 
 	// Getting the ES version number is quite common, so there's a shortcut
-	esversion, err := client.ElasticsearchVersion(address)
+	_, err = client.ElasticsearchVersion(address)
 	if err != nil {
-		// Handle error
-		fmt.Println(esversion)
-		panic(err)
+		return
 	}
-	// fmt.Printf("Elasticsearch version %s\n", esversion)
 
 	return
 }
