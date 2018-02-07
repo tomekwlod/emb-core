@@ -23,12 +23,20 @@ const ESUrl = "http://127.0.0.1:9200"
 const ESIndex = "embase"
 
 func main() {
+	// Create ES client here; If no connection - nothing to do here
+	client, err := newESClient(ESUrl)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// loading the credentials and other FTP settings
 	ftpClient := ftp.Client{}
 	configor.Load(&ftpClient, "config/ftp.yml")
 
 	if ftpClient.Addr == "" {
-		panic("Couldn't load configuration properly")
+		// fmt.Fprintf(os.Stderr, "Couldn't load configuration properly")
+		log.Fatal(err)
+		return
 	}
 
 	// what and where exactly to search
@@ -40,20 +48,17 @@ func main() {
 	// give all files with above conditions
 	list, err := ftpClient.FTPFilesList(ftpIn)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
-	log.Println("Found " + strconv.Itoa(len(list)) + " remote file(s) in " + ftpIn.Path + "\n")
+	l := log.New(os.Stdout, "", log.Ldate|log.Ltime)
 
-	// elastic search client
-	client, err := newESClient(ESUrl)
-	if err != nil {
-		panic(err)
-	}
+	l.Println("Found " + strconv.Itoa(len(list)) + " remote file(s) in " + ftpIn.Path + "\n")
 
+	// Create mapping
 	err = createIndex(client, ESIndex)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	// download each file, convert it to JSON and index in ES
@@ -61,34 +66,34 @@ func main() {
 		targetFile := "./" + file.Name
 		remotePath := filepath.Join(ftpIn.Path, file.Name)
 
-		log.Println("Downloading from " + remotePath + " to " + targetFile)
+		l.Println("Downloading from " + remotePath + " to " + targetFile)
 		err := ftpClient.FTPDownload(remotePath, targetFile)
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 
-		log.Println("Opening it...")
+		l.Println("Opening it...")
 		xmlFile, err := os.Open(targetFile)
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 		defer xmlFile.Close()
 
-		log.Println("Reading it...")
+		l.Println("Reading it...")
 		b, err := ioutil.ReadAll(xmlFile)
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 
-		log.Println("Unmarshaling...")
+		l.Println("Unmarshaling...")
 		var doc models.Documents
 		err = xml.Unmarshal(b, &doc)
 		if err != nil {
 			// for debuging purposes only
-			panic(err)
+			log.Fatal(err)
 		}
 
-		log.Printf("Inserting %d rows\n", len(doc.Documents))
+		l.Printf("Inserting %d rows\n", len(doc.Documents))
 
 		// Starting the benchmark
 		timeStart := time.Now()
@@ -116,10 +121,10 @@ func main() {
 
 		resp, err := req.Do(context.TODO())
 		if err != nil {
-			panic(err)
+			log.Fatal(err)
 		}
 		if resp.Errors == true {
-			log.Printf("%d errors occured. See a log XXXX file.\n", len(resp.Failed()))
+			l.Printf("%d errors occured. See a log XXXX file.\n", len(resp.Failed()))
 
 			// to log file instead and show how many errors occured
 			for _, row := range resp.Failed() {
@@ -130,7 +135,7 @@ func main() {
 		// How long did it take
 		duration := time.Since(timeStart).Seconds()
 
-		log.Printf("Imported %d documents, %d failed. All in %f seconds",
+		l.Printf("Imported %d documents, %d failed. All in %f seconds",
 			len(resp.Succeeded()),
 			len(resp.Failed()),
 			duration,
@@ -142,9 +147,9 @@ func main() {
 
 		err = ftpClient.Rename(remotePath, renameTo)
 		if err != nil {
-			log.Printf("Coudn't rename source file from `%s` to `%s`. Error: %v", remotePath, renameTo, err)
+			l.Printf("Coudn't rename source file from `%s` to `%s`. Error: %v", remotePath, renameTo, err)
 		} else {
-			log.Printf("Renaming source file from `%s` to `%s`", remotePath, renameTo)
+			l.Printf("Renaming source file from `%s` to `%s`", remotePath, renameTo)
 		}
 
 		// just for spacing
@@ -154,12 +159,12 @@ func main() {
 		os.RemoveAll(targetFile)
 	}
 
-	log.Printf("All done")
+	l.Printf("All done")
 }
 
 func newESClient(address string) (client *elastic.Client, err error) {
 	// not sure
-	errorlog := log.New(os.Stdout, "APP ", log.LstdFlags)
+	errorlog := log.New(os.Stdout, "ESAPP ", log.LstdFlags)
 
 	// Obtain a client. You can also provide your own HTTP client here.
 	client, err = elastic.NewClient(elastic.SetURL(address), elastic.SetErrorLog(errorlog))
@@ -196,7 +201,7 @@ func createIndex(client *elastic.Client, index string) (err error) {
 		return
 	}
 
-	log.Println("No mapping found. Creating one")
+	l.Println("No mapping found. Creating one")
 
 	// Create a new index
 	file, err := utils.ReadWholeFile("./mapping.json")
