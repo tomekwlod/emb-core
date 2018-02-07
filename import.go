@@ -27,8 +27,16 @@ const ESUrl = "http://127.0.0.1:9200"
 const ESIndex = "embase"
 
 func main() {
+	l = log.New(os.Stdout, "", log.Ldate|log.Ltime)
+
 	// Create ES client here; If no connection - nothing to do here
 	client, err := newESClient(ESUrl)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Create mapping
+	err = createIndex(client, ESIndex)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -55,15 +63,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	l := log.New(os.Stdout, "", log.Ldate|log.Ltime)
-
 	l.Println("Found " + strconv.Itoa(len(list)) + " remote file(s) in " + ftpIn.Path + "\n")
-
-	// Create mapping
-	err = createIndex(client, ESIndex)
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	// download each file, convert it to JSON and index in ES
 	for _, file := range list {
@@ -145,9 +145,9 @@ func main() {
 			duration,
 		)
 
-		// t := time.Now()
-		// renameTo := filepath.Join("archive", t.Format("2006-01-02T150405")+"_"+file.Name)
-		renameTo := filepath.Join("archive", file.Name)
+		t := time.Now()
+		renameTo := filepath.Join("archive", t.Format("2006-01-02T150405")+"_"+file.Name)
+		// renameTo := filepath.Join("archive", file.Name)
 
 		err = ftpClient.Rename(remotePath, renameTo)
 		if err != nil {

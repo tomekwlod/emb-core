@@ -20,7 +20,7 @@
 					}
 				},
 				"AccessionNumber":{
-					"type":"long"
+					"type":"keyword"
 				},
 				"AlternateTitle" : {
 					"properties" : {
