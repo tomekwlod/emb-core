@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -17,6 +18,9 @@ import (
 	"github.com/tomekwlod/utils/ftp"
 	elastic "gopkg.in/olivere/elastic.v6"
 )
+
+const ESUrl = "http://127.0.0.1:9200"
+const ESIndex = "embase"
 
 func main() {
 	// loading the credentials and other FTP settings
@@ -42,34 +46,14 @@ func main() {
 	log.Println("Found " + strconv.Itoa(len(list)) + " remote file(s) in " + ftpIn.Path + "\n")
 
 	// elastic search client
-	client, err := newESClient("http://127.0.0.1:9200")
+	client, err := newESClient(ESUrl)
 	if err != nil {
 		panic(err)
 	}
 
-	// Use the IndexExists service to check if a specified index exists.
-	exists, err := client.IndexExists("dmcs").Do(context.Background())
+	err = createIndex(client, ESIndex)
 	if err != nil {
-		// Handle error
 		panic(err)
-	}
-	if !exists {
-		log.Println("No mapping found. Creating one")
-
-		// Create a new index
-		file, err := utils.ReadWholeFile("./mapping.json")
-		if err != nil {
-			log.Printf("No mapping file found. Skipping. %v\n", err)
-		} else {
-			createIndex, err := client.CreateIndex("dmcs").Body(string(file)).Do(context.Background())
-			if err != nil {
-				// Handle error
-				panic(err)
-			}
-			if !createIndex.Acknowledged {
-				panic("Mapping couldn't be acknowledged")
-			}
-		}
 	}
 
 	// download each file, convert it to JSON and index in ES
@@ -109,14 +93,15 @@ func main() {
 		// Starting the benchmark
 		timeStart := time.Now()
 
-		req := client.Bulk().Index("dmcs").Type("doc")
+		req := client.Bulk().Index(ESIndex).Type("doc")
 		for _, row := range doc.Documents {
-			row.Type = "embase"
+			// row.Type = "embase"
+			row.IndexedAt = time.Now()
 			row.AlertID = doc.AlertID
 			row.AlertName = doc.AlertName
 
 			// this also works fine but a lot slower
-			// _, err := client.Index().Index("dmcs").Type("doc").
+			// _, err := client.Index().Index(ESIndex).Type("doc").
 			// 	Id(strconv.Itoa(row.AccessionNumber)).
 			// 	BodyJson(row).
 			// 	Do(context.Background())
@@ -145,11 +130,8 @@ func main() {
 		// How long did it take
 		duration := time.Since(timeStart).Seconds()
 
-		log.Printf("Imported %d documents (indexed %d, updated %d, created %d), %d failed. All in %f seconds",
+		log.Printf("Imported %d documents, %d failed. All in %f seconds",
 			len(resp.Succeeded()),
-			len(resp.Indexed()),
-			len(resp.Updated()),
-			len(resp.Created()),
 			len(resp.Failed()),
 			duration,
 		)
@@ -197,6 +179,38 @@ func newESClient(address string) (client *elastic.Client, err error) {
 	// Getting the ES version number is quite common, so there's a shortcut
 	_, err = client.ElasticsearchVersion(address)
 	if err != nil {
+		return
+	}
+
+	return
+}
+
+func createIndex(client *elastic.Client, index string) (err error) {
+	// Use the IndexExists service to check if a specified index exists.
+	exists, err := client.IndexExists(index).Do(context.Background())
+	if err != nil {
+		return
+	}
+
+	if exists {
+		return
+	}
+
+	log.Println("No mapping found. Creating one")
+
+	// Create a new index
+	file, err := utils.ReadWholeFile("./mapping.json")
+	if err != nil {
+		return
+	}
+
+	ic, err := client.CreateIndex(index).Body(string(file)).Do(context.Background())
+	if err != nil {
+		return
+	}
+
+	if !ic.Acknowledged {
+		err = errors.New("Mapping couldn't be acknowledged")
 		return
 	}
 

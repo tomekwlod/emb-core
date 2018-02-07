@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/xml"
+	"time"
 )
 
 type Documents struct {
@@ -12,7 +13,8 @@ type Documents struct {
 	Documents []Document `xml:"Documents>Literature"`
 }
 type Document struct {
-	Type                 string           `json:"type"`
+	// Type                 string           `json:"type"` // once Index is embase, there is no need for an extra type
+	IndexedAt            time.Time        `json:"indexedAt"`
 	AlertID              string           `json:"alertID"`
 	AlertName            string           `json:"alertName"`
 	TitleInfo            []TitleInfo      `xml:"DocInfo>TitleInfo>Title"`
