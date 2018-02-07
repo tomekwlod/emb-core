@@ -19,7 +19,7 @@ type Document struct {
 	AlertName            string           `json:"alertName"`
 	TitleInfo            []TitleInfo      `xml:"DocInfo>TitleInfo>Title"`
 	AlternateTitle       []TitleInfo      `xml:"DocInfo>TitleInfo>AlternateTitle" json:",omitempty"`
-	AccessionNumber      int              `xml:"DocInfo>AccessionNumber"`
+	AccessionNumber      string           `xml:"DocInfo>AccessionNumber"`
 	DatabaseName         string           `xml:"DocInfo>DatabaseName"`
 	ProquestID           int              `xml:"DocInfo>ProquestID"`
 	DocumentIDs          []DocumentID     `xml:"DocInfo>DocumentIDs>DocumentID" json:",omitempty"`

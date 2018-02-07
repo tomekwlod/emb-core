@@ -19,6 +19,10 @@ import (
 	elastic "gopkg.in/olivere/elastic.v6"
 )
 
+var (
+	l *log.Logger
+)
+
 const ESUrl = "http://127.0.0.1:9200"
 const ESIndex = "embase"
 
@@ -116,7 +120,7 @@ func main() {
 
 			// i have to find out what is the limit for the bulk operation
 			// i might have to execute `Do` request in every eg.30000 batch
-			req.Add(elastic.NewBulkIndexRequest().Id(strconv.Itoa(row.AccessionNumber)).Doc(row))
+			req.Add(elastic.NewBulkIndexRequest().Id(strconv.Itoa(row.ProquestID)).Doc(row))
 		}
 
 		resp, err := req.Do(context.TODO())
