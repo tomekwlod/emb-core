@@ -24,12 +24,12 @@ type Document struct {
 	ProquestID           int              `xml:"DocInfo>ProquestID"`
 	DocumentIDs          []DocumentID     `xml:"DocInfo>DocumentIDs>DocumentID" json:",omitempty"`
 	SourceAttribution    string           `xml:"DocInfo>SourceAttribution"`
-	PublicationDate      string           `xml:"DocInfo>PublicationDate"`
-	PublicationAlphaDate string           `xml:"DocInfo>PublicationAlphaDate"`
-	DateCreated          string           `xml:"DocInfo>DateCreated"`
-	DateRevised          string           `xml:"DocInfo>DateRevised"`
-	FirstAvailableDate   string           `xml:"DocInfo>FirstAvailableDate"`
-	LastUpdateDate       string           `xml:"DocInfo>LastUpdateDate"`
+	PublicationDate      string           `xml:"DocInfo>PublicationDate" json:",omitempty"`
+	PublicationAlphaDate string           `xml:"DocInfo>PublicationAlphaDate" json:",omitempty"`
+	DateCreated          string           `xml:"DocInfo>DateCreated" json:",omitempty"`
+	DateRevised          string           `xml:"DocInfo>DateRevised" json:",omitempty"`
+	FirstAvailableDate   string           `xml:"DocInfo>FirstAvailableDate" json:",omitempty"`
+	LastUpdateDate       string           `xml:"DocInfo>LastUpdateDate" json:",omitempty"`
 	DocumentStatus       string           `xml:"DocInfo>DocumentStatus"`
 	DocumentType         string           `xml:"DocInfo>DocumentType"`
 	SourceType           string           `xml:"DocInfo>SourceType"`
