@@ -23,20 +23,32 @@ var (
 	l *log.Logger
 )
 
-const ESUrl = "http://127.0.0.1:9200"
-const ESIndex = "embase"
+type esConfig struct {
+	Addr       string
+	Port       int
+	Index      string
+	UseSniffer bool
+	Auth       basicAuth
+}
+type basicAuth struct {
+	Username string
+	Password string
+}
 
 func main() {
 	l = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 
+	ec := esConfig{}
+	configor.Load(&ec, "config/es.yml")
+
 	// Create ES client here; If no connection - nothing to do here
-	client, err := newESClient(ESUrl)
+	client, err := newESClient(ec)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Create mapping
-	err = createIndex(client, ESIndex)
+	err = createIndex(client, ec.Index)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -102,7 +114,7 @@ func main() {
 		// Starting the benchmark
 		timeStart := time.Now()
 
-		req := client.Bulk().Index(ESIndex).Type("doc")
+		req := client.Bulk().Index(ec.Index).Type("doc")
 		for _, row := range doc.Documents {
 			// row.Type = "embase"
 			row.IndexedAt = time.Now()
@@ -166,12 +178,22 @@ func main() {
 	l.Printf("All done")
 }
 
-func newESClient(address string) (client *elastic.Client, err error) {
+func newESClient(ec esConfig) (client *elastic.Client, err error) {
 	// not sure
 	errorlog := log.New(os.Stdout, "ESAPP ", log.LstdFlags)
 
+	// ip plus port plus protocol
+	addr := "http://" + ec.Addr + ":" + strconv.Itoa(ec.Port)
+
+	var configs []elastic.ClientOptionFunc
+	configs = append(configs, elastic.SetURL(addr), elastic.SetErrorLog(errorlog))
+	configs = append(configs, elastic.SetSniff(ec.UseSniffer)) // this is very important when you use proxy above your ES instance; it may be though wanted for many ES nodes
+	if ec.Auth.Username != "" {
+		configs = append(configs, elastic.SetBasicAuth(ec.Auth.Username, ec.Auth.Password))
+	}
+
 	// Obtain a client. You can also provide your own HTTP client here.
-	client, err = elastic.NewClient(elastic.SetURL(address), elastic.SetErrorLog(errorlog))
+	client, err = elastic.NewClient(configs...)
 	if err != nil {
 		return
 	}
@@ -180,13 +202,13 @@ func newESClient(address string) (client *elastic.Client, err error) {
 	//client.SetTracer(log.New(os.Stdout, "", 0))
 
 	// Ping the Elasticsearch server to get info, code, and error if any
-	_, _, err = client.Ping(address).Do(context.Background())
+	_, _, err = client.Ping(addr).Do(context.Background())
 	if err != nil {
 		return
 	}
 
 	// Getting the ES version number is quite common, so there's a shortcut
-	_, err = client.ElasticsearchVersion(address)
+	_, err = client.ElasticsearchVersion(addr)
 	if err != nil {
 		return
 	}
