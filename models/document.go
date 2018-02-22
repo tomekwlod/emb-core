@@ -37,9 +37,9 @@ type Document struct {
 	Language             string           `xml:"DocInfo>Language"`
 	NumRefs              int              `xml:"DocInfo>DocFeatures>NumRefs" json:",omitempty"`
 	URL                  string           `xml:"DocInfo>URL"`
-	OutboundLinks        []string         `xml:"DocInfo>OutboundLinks" json:",omitempty"`
+	OutboundLinks        []string         `xml:"DocInfo>OutboundLinks>Link" json:",omitempty"`
 	Contributors         []Contributor    `xml:"Contributors>Contributor" json:",omitempty"`
-	Abstract             []Abstract       `xml:"Abstract"`
+	Abstract             []Abstract       `xml:"Abstract" json:",omitempty"`
 	HeadingTerms         []HeadingTerm    `xml:"Subjects>HeadingTerms>HeadingTerm" json:",omitempty"`
 	SubjectTerms         []string         `xml:"Subjects>SubjectTerms>SubjectTerm" json:",omitempty"`
 	IdentifierTerms      []string         `xml:"Subjects>IdentifierTerms>IdentifierTerm" json:",omitempty"`
@@ -101,10 +101,10 @@ type Classification struct {
 	ClassExpansion string `xml:"ClassExpansion"`
 }
 type ConferenceInfo struct {
-	Title    string           `xml:"ConferenceTitle"`
-	Country  string           `xml:"ConferenceLocationInfo>ConferenceCountry"`
-	Location string           `xml:"ConferenceLocationInfo>ConferenceLocation"`
-	Dates    []ConferenceDate `xml:"ConferenceDates>ConferenceDate"`
+	Title    string           `xml:"ConferenceTitle" json:",omitempty"`
+	Country  string           `xml:"ConferenceLocationInfo>ConferenceCountry" json:",omitempty"`
+	Location string           `xml:"ConferenceLocationInfo>ConferenceLocation" json:",omitempty"`
+	Dates    []ConferenceDate `xml:"ConferenceDates>ConferenceDate" json:",omitempty"`
 }
 type ConferenceDate struct {
 	Type string `xml:"ConferenceDateType,attr"`

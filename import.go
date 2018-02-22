@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -82,7 +83,7 @@ func main() {
 		targetFile := "./" + file.Name
 		remotePath := filepath.Join(ftpIn.Path, file.Name)
 
-		l.Println("Downloading from " + remotePath + " to " + targetFile)
+		l.Println("Downloading from: " + remotePath + " to local path: " + targetFile)
 		err := ftpClient.FTPDownload(remotePath, targetFile)
 		if err != nil {
 			log.Fatal(err)
@@ -114,12 +115,38 @@ func main() {
 		// Starting the benchmark
 		timeStart := time.Now()
 
+		// holds the alertName if any
+		diseaseArea := ""
+
 		req := client.Bulk().Index(ec.Index).Type("doc")
 		for _, row := range doc.Documents {
 			// row.Type = "embase"
 			row.IndexedAt = time.Now()
 			row.AlertID = doc.AlertID
-			row.AlertName = doc.AlertName
+
+			// set the disease area for the first time only
+			if diseaseArea == "" {
+				if row.AlertName != "" {
+					diseaseArea = row.AlertName
+				} else {
+					// if the filename contains the disease area sentence at the beginning, or just after
+					// the time the file been moved to the archive, take this disease area and use it later as the AlertName
+					pattern := `(^|_)([A-z\s+]+)\s\(.+\)\.xml`
+					r := regexp.MustCompile(pattern)
+					match := r.FindStringSubmatch(file.Name)
+
+					// first match will be the full match
+					// second, either the _ or ^
+					// third the exact disease area match
+					if len(match) > 2 {
+						diseaseArea = match[2]
+					} else {
+						diseaseArea = "-undefined-"
+					}
+				}
+			}
+
+			row.AlertName = diseaseArea
 
 			// this also works fine but a lot slower
 			// _, err := client.Index().Index(ESIndex).Type("doc").
@@ -157,9 +184,18 @@ func main() {
 			duration,
 		)
 
+		// finish the benchmark
 		t := time.Now()
-		renameTo := filepath.Join("archive", t.Format("2006-01-02T150405")+"_"+file.Name)
-		// renameTo := filepath.Join("archive", file.Name)
+
+		// if the file was already processed before, do not rename it again
+		// it should happen only when you move the archived files to the main directory to reindex the docs again
+		r := regexp.MustCompile(`\d{4}-\d{2}-\d{2}T\d{6}`)
+		match := r.FindString(file.Name)
+
+		renameTo := filepath.Join("archive", file.Name)
+		if match == "" {
+			renameTo = filepath.Join("archive", t.Format("2006-01-02T150405")+"_"+file.Name)
+		}
 
 		err = ftpClient.Rename(remotePath, renameTo)
 		if err != nil {
