@@ -14,9 +14,9 @@ type Documents struct {
 }
 type Document struct {
 	// Type                 string           `json:"type"` // once Index is embase, there is no need for an extra type
-	IndexedAt            time.Time        `json:"indexedAt"`
-	AlertID              string           `json:"alertID"`
-	AlertName            string           `json:"alertName"`
+	IndexedAt time.Time `json:"indexedAt"`
+	// AlertID              string           `json:"alertID" json:",omitempty"`
+	Diseases             []string         `json:"diseases" json:",omitempty"`
 	TitleInfo            []TitleInfo      `xml:"DocInfo>TitleInfo>Title"`
 	AlternateTitle       []TitleInfo      `xml:"DocInfo>TitleInfo>AlternateTitle" json:",omitempty"`
 	AccessionNumber      string           `xml:"DocInfo>AccessionNumber"`

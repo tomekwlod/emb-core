@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -117,72 +118,67 @@ func main() {
 
 		// holds the alertName if any
 		diseaseArea := ""
+		// set the disease area for the first time only
+		if diseaseArea == "" {
+			if doc.AlertName != "" {
+				diseaseArea = doc.AlertName
+			} else {
+				// if the filename contains the disease area sentence at the beginning, or just after
+				// the time the file been moved to the archive, take this disease area and use it later as the AlertName
+				pattern := `(^|_)([A-z\s+]+)\s\(.+\)\.xml`
+				r := regexp.MustCompile(pattern)
+				match := r.FindStringSubmatch(file.Name)
 
-		req := client.Bulk().Index(ec.Index).Type("doc")
-		for _, row := range doc.Documents {
-			// row.Type = "embase"
-			row.IndexedAt = time.Now()
-			row.AlertID = doc.AlertID
-
-			// set the disease area for the first time only
-			if diseaseArea == "" {
-				if row.AlertName != "" {
-					diseaseArea = row.AlertName
+				// first match will be the full match
+				// second, either the _ or ^
+				// third the exact disease area match
+				if len(match) > 2 {
+					diseaseArea = match[2]
 				} else {
-					// if the filename contains the disease area sentence at the beginning, or just after
-					// the time the file been moved to the archive, take this disease area and use it later as the AlertName
-					pattern := `(^|_)([A-z\s+]+)\s\(.+\)\.xml`
-					r := regexp.MustCompile(pattern)
-					match := r.FindStringSubmatch(file.Name)
+					diseaseArea = "-undefined-"
+				}
+			}
+		}
+		i := 0
+		for _, newDoc := range doc.Documents {
+			newDoc.IndexedAt = time.Now()
+			newDoc.Diseases = append(newDoc.Diseases, diseaseArea)
 
-					// first match will be the full match
-					// second, either the _ or ^
-					// third the exact disease area match
-					if len(match) > 2 {
-						diseaseArea = match[2]
-					} else {
-						diseaseArea = "-undefined-"
+			ret, err := client.Get().Index(ec.Index).Type("doc").Id(strconv.Itoa(newDoc.ProquestID)).Do(context.Background())
+			if err == nil {
+				// old document exists
+				var olddoc models.Document
+				json.Unmarshal(*ret.Source, &olddoc)
+				newDoc.Diseases = olddoc.Diseases
+
+				f := false
+				for _, vv := range olddoc.Diseases {
+					if vv == diseaseArea {
+						f = true
 					}
+				}
+				if !f {
+					newDoc.Diseases = append(olddoc.Diseases, diseaseArea)
 				}
 			}
 
-			row.AlertName = diseaseArea
-
 			// this also works fine but a lot slower
-			// _, err := client.Index().Index(ESIndex).Type("doc").
-			// 	Id(strconv.Itoa(row.AccessionNumber)).
-			// 	BodyJson(row).
-			// 	Do(context.Background())
-			// if err != nil {
-			// 	panic(err)
-			// }
+			_, err = client.Index().Index(ec.Index).Type("doc").Id(strconv.Itoa(newDoc.ProquestID)).BodyJson(newDoc).Do(context.Background())
+			if err != nil {
+				panic(err)
+			}
 
+			fmt.Println("Indexed ", newDoc.ProquestID)
+			i++
 			// i have to find out what is the limit for the bulk operation
 			// i might have to execute `Do` request in every eg.30000 batch
-			req.Add(elastic.NewBulkIndexRequest().Id(strconv.Itoa(row.ProquestID)).Doc(row))
-		}
-
-		resp, err := req.Do(context.TODO())
-		if err != nil {
-			log.Fatal(err)
-		}
-		if resp.Errors == true {
-			l.Printf("%d errors occured. See a log XXXX file.\n", len(resp.Failed()))
-
-			// to log file instead and show how many errors occured
-			for _, row := range resp.Failed() {
-				fmt.Printf("%s => %+v\n", row.Id, row.Error)
-			}
+			// req.Add(elastic.NewBulkIndexRequest().Id(strconv.Itoa(row.ProquestID)).Doc(row))
 		}
 
 		// How long did it take
 		duration := time.Since(timeStart).Seconds()
 
-		l.Printf("Imported %d documents, %d failed. All in %f seconds",
-			len(resp.Succeeded()),
-			len(resp.Failed()),
-			duration,
-		)
+		l.Printf("Imported %d documents. All in %f seconds", i, duration)
 
 		// finish the benchmark
 		t := time.Now()
