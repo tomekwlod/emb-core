@@ -111,8 +111,6 @@ func main() {
 			log.Fatal(err)
 		}
 
-		l.Printf("Inserting %d rows\n", len(doc.Documents))
-
 		// Starting the benchmark
 		timeStart := time.Now()
 
@@ -139,6 +137,9 @@ func main() {
 				}
 			}
 		}
+
+		l.Printf("Inserting %d rows for disease: %s\n", len(doc.Documents), diseaseArea)
+
 		i := 0
 		for _, newDoc := range doc.Documents {
 			newDoc.IndexedAt = time.Now()
@@ -162,13 +163,12 @@ func main() {
 				}
 			}
 
-			// this also works fine but a lot slower
 			_, err = client.Index().Index(ec.Index).Type("doc").Id(strconv.Itoa(newDoc.ProquestID)).BodyJson(newDoc).Do(context.Background())
 			if err != nil {
 				panic(err)
 			}
 
-			fmt.Println("Indexed ", newDoc.ProquestID)
+			l.Println("Indexed ", newDoc.ProquestID)
 			i++
 			// i have to find out what is the limit for the bulk operation
 			// i might have to execute `Do` request in every eg.30000 batch
