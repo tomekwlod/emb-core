@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
-	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -38,31 +38,94 @@ type basicAuth struct {
 }
 
 func main() {
-	l = log.New(os.Stdout, "", log.Ldate|log.Ltime)
+	file, err := os.OpenFile("import.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalln("Failed to open log file", err)
+	}
+	multi := io.MultiWriter(file, os.Stdout)
+	l := log.New(multi, "", log.Ldate|log.Ltime)
+
+	l.Println("New session")
+
+	// // loading the credentials and other FTP settings
+	// ftpClient1 := ftp.Client{}
+
+	// configor.Load(&ftpClient1, "config/ftps.yml")
+	// if err != nil {
+	// 	l.Fatalln(err)
+	// }
+
+	// if ftpClient1.Addr == "" {
+	// 	l.Fatalln("Couldn't load configuration properly")
+	// }
+
+	// // what and where exactly to search
+	// ftpIn1 := &ftp.SearchInput{
+	// 	Path:   "/",
+	// 	Suffix: ".xml",
+	// }
+
+	// // give all files with above conditions
+	// list1, err := ftpClient1.FTPFilesList(ftpIn1)
+	// if err != nil {
+	// 	l.Fatalln(err)
+	// }
+
+	// l.Printf("Found %d remote file(s) \n", len(list1))
+	// l.Println(" " + ftpIn1.Path + "\n")
+
+	// // download each file, convert it to JSON and index in ES
+	// for _, file := range list1 {
+	// 	fmt.Println(file.Name)
+	// }
+	// return
+
+	// fmt.Println(os.Getpid())
+	// time.Sleep(30000 * time.Millisecond) // 30s
+	// fmt.Println(2)
+
+	// for _, p := range os.Args[1:] {
+	// 	pid, err := strconv.ParseInt(p, 10, 64)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// 	process, err := os.FindProcess(int(pid))
+	// 	if err != nil {
+	// 		fmt.Printf("Failed to find process: %s\n", err)
+	// 	} else {
+	// 		err := process.Signal(syscall.Signal(0))
+	// 		fmt.Printf("process.Signal on pid %d returned: %v\n", pid, err)
+	// 	}
+
+	// }
+	// return
 
 	ec := esConfig{}
 	configor.Load(&ec, "config/es.yml")
 
+	if ec.Addr == "" {
+		// Panic is better here because we also want to send an error to stderr, not only stdout+exit(1)
+		// l.Fatalln("Elasticsearch configuration couldn't be loaded")
+		l.Panicln("Elasticsearch configuration couldn't be loaded")
+	}
+
+	fc := ftp.Client{}
+	configor.Load(&fc, "config/ftp.yml")
+
+	if fc.Addr == "" {
+		l.Panicln("FTP configuration couldn't be loaded")
+	}
+
 	// Create ES client here; If no connection - nothing to do here
 	client, err := newESClient(ec)
 	if err != nil {
-		log.Fatal(err)
+		l.Panicln(err)
 	}
 
 	// Create mapping
 	err = createIndex(client, ec.Index)
 	if err != nil {
-		log.Fatal(err)
-	}
-
-	// loading the credentials and other FTP settings
-	ftpClient := ftp.Client{}
-	configor.Load(&ftpClient, "config/ftp.yml")
-
-	if ftpClient.Addr == "" {
-		// fmt.Fprintf(os.Stderr, "Couldn't load configuration properly")
-		log.Fatal(err)
-		return
+		l.Panicln(err)
 	}
 
 	// what and where exactly to search
@@ -72,12 +135,12 @@ func main() {
 	}
 
 	// give all files with above conditions
-	list, err := ftpClient.FTPFilesList(ftpIn)
+	list, err := fc.FTPFilesList(ftpIn)
 	if err != nil {
-		log.Fatal(err)
+		l.Panicln(err)
 	}
 
-	l.Println("Found " + strconv.Itoa(len(list)) + " remote file(s) in " + ftpIn.Path + "\n")
+	l.Println("Found " + strconv.Itoa(len(list)) + " remote file(s) in " + ftpIn.Path)
 
 	// download each file, convert it to JSON and index in ES
 	for _, file := range list {
@@ -85,30 +148,29 @@ func main() {
 		remotePath := filepath.Join(ftpIn.Path, file.Name)
 
 		l.Println("Downloading from: " + remotePath + " to local path: " + targetFile)
-		err := ftpClient.FTPDownload(remotePath, targetFile)
+		err := fc.FTPDownload(remotePath, targetFile)
 		if err != nil {
-			log.Fatal(err)
+			l.Panicln(err)
 		}
 
 		l.Println("Opening it...")
 		xmlFile, err := os.Open(targetFile)
 		if err != nil {
-			log.Fatal(err)
+			l.Panicln(err)
 		}
 		defer xmlFile.Close()
 
 		l.Println("Reading it...")
 		b, err := ioutil.ReadAll(xmlFile)
 		if err != nil {
-			log.Fatal(err)
+			l.Panicln(err)
 		}
 
 		l.Println("Unmarshaling...")
 		var doc models.Documents
 		err = xml.Unmarshal(b, &doc)
 		if err != nil {
-			// for debuging purposes only
-			log.Fatal(err)
+			l.Panicln(err)
 		}
 
 		// Starting the benchmark
@@ -133,6 +195,7 @@ func main() {
 				if len(match) > 2 {
 					diseaseArea = match[2]
 				} else {
+					// @todo: here we should somehow note it down that this particular file was 'broken' for further investigation
 					diseaseArea = "-undefined-"
 				}
 			}
@@ -165,10 +228,10 @@ func main() {
 
 			_, err = client.Index().Index(ec.Index).Type("doc").Id(strconv.Itoa(newDoc.ProquestID)).BodyJson(newDoc).Do(context.Background())
 			if err != nil {
-				panic(err)
+				l.Panicln(err)
 			}
 
-			l.Println("Indexed ", newDoc.ProquestID)
+			l.Printf(" -> indexed %d\n", newDoc.ProquestID)
 			i++
 			// i have to find out what is the limit for the bulk operation
 			// i might have to execute `Do` request in every eg.30000 batch
@@ -178,7 +241,7 @@ func main() {
 		// How long did it take
 		duration := time.Since(timeStart).Seconds()
 
-		l.Printf("Imported %d documents. All in %f seconds", i, duration)
+		l.Printf("Imported %d documents. All in %f seconds\n", i, duration)
 
 		// finish the benchmark
 		t := time.Now()
@@ -193,21 +256,18 @@ func main() {
 			renameTo = filepath.Join("archive", t.Format("2006-01-02T150405")+"_"+file.Name)
 		}
 
-		err = ftpClient.Rename(remotePath, renameTo)
+		err = fc.Rename(remotePath, renameTo)
 		if err != nil {
-			l.Printf("Coudn't rename source file from `%s` to `%s`. Error: %v", remotePath, renameTo, err)
+			l.Printf("ERROR: Coudn't rename source file from `%s` to `%s`. Error: %v\n", remotePath, renameTo, err)
 		} else {
-			l.Printf("Renaming source file from `%s` to `%s`", remotePath, renameTo)
+			l.Printf("Renaming source file from `%s` to `%s`\n", remotePath, renameTo)
 		}
-
-		// just for spacing
-		fmt.Println()
 
 		// removing temp file
 		os.RemoveAll(targetFile)
 	}
 
-	l.Printf("All done")
+	l.Print("All done\n\n")
 }
 
 func newESClient(ec esConfig) (client *elastic.Client, err error) {
