@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/jinzhu/configor"
 	"github.com/tomekwlod/emb-core/models"
+	"github.com/tomekwlod/esl"
 	"github.com/tomekwlod/utils"
 	"github.com/tomekwlod/utils/ftp"
 	elastic "gopkg.in/olivere/elastic.v6"
@@ -38,6 +40,23 @@ type basicAuth struct {
 }
 
 func main() {
+	eslClient := &esl.Client{}
+	configor.Load(eslClient, "config/esl.yml")
+	e := &esl.Env{
+		eslClient,
+	}
+	res, err := e.SendLog(&esl.Log{
+		Domain:  "embase",
+		Command: "import",
+		Flag:    "init",
+		Data:    nil,
+	})
+	if err == nil {
+		fmt.Printf("Message sent to ESL, _id received: %s\n", res.ID)
+		// cannot use l. like below, i am not sure why
+		// l.Println("Message sent to ESL, id received: " + res.ID)
+	}
+
 	file, err := os.OpenFile("import.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatalln("Failed to open log file", err)
@@ -267,6 +286,7 @@ func main() {
 		os.RemoveAll(targetFile)
 	}
 
+	e.SendLog(&esl.Log{Domain: "embase", Command: "import", Flag: "done", Data: nil})
 	l.Print("All done\n\n")
 }
 
