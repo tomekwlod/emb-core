@@ -1,176 +1,194 @@
 {
+	"settings" : {
+		"analysis" : {
+			"normalizer" : {
+				"ascii_norm" : {
+					"type" : "custom",
+					"char_filter" : [],
+					"filter" : ["asciifolding"]
+				},
+				"ascii_lower_norm" : {
+					"type" : "custom",
+					"char_filter" : [],
+					"filter" : ["lowercase", "asciifolding"]
+				}
+			}
+		},
+		"index" : {
+			"number_of_shards" : 2, 
+			"number_of_replicas" : 0
+		}
+	},
 	"mappings":{
-		"doc":{
-			"properties":{
-				"Abstract":{
-					"type":"nested",
-					"properties":{
-						"Text": {
-							"type":"text"
-						},
-						"WordCount": {
-							"type":"keyword"
-						},
-						"Type": {
-							"type":"keyword"
-						},
-						"Language": {
-							"type":"keyword"
-						}
+		"properties":{
+			"Abstract":{
+				"type":"nested",
+				"properties":{
+					"Text": {
+						"type":"text"
+					},
+					"WordCount": {
+						"type":"keyword"
+					},
+					"Type": {
+						"type":"keyword"
+					},
+					"Language": {
+						"type":"keyword"
 					}
-				},
-				"AccessionNumber":{
-					"type":"keyword"
-				},
-				"AlternateTitle" : {
-					"properties" : {
-						"Language" : {
-							"type" : "text",
-							"fields" : {
-								"keyword" : {
-									"type" : "keyword",
-									"ignore_above" : 256
-								}
-							}
-						},
-						"Title" : {
-							"type" : "text",
-							"fields" : {
-								"keyword" : {
-									"type" : "keyword",
-									"ignore_above" : 256
-								}
+				}
+			},
+			"AccessionNumber":{
+				"type":"keyword"
+			},
+			"AlternateTitle" : {
+				"properties" : {
+					"Language" : {
+						"type" : "text",
+						"fields" : {
+							"keyword" : {
+								"type" : "keyword",
+								"ignore_above" : 256
 							}
 						}
-					}
-				},
-				"Contributors":{
-					"type":"nested",
-					"properties":{
-						"Order": {
-							"type":"short"
-						},
-						"Role": {
-							"type":"keyword"
-						},
-						"NormalizedName" : {
-							"type" : "text",
-							"fields" : {
-								"keyword" : {
-									"type" : "keyword",
-									"ignore_above" : 256
-								}
-							}
-						},
-						"LastName" : {
-							"type" : "text",
-							"fields" : {
-								"keyword" : {
-									"type" : "keyword",
-									"ignore_above" : 256
-								}
-							}
-						},
-						"FirstName" : {
-							"type" : "text",
-							"fields" : {
-								"keyword" : {
-									"type" : "keyword",
-									"ignore_above" : 256
-								}
-							}
-						},
-						"EmailAddress": {
-							"type":"keyword"
-						},
-						"RefCode": {
-							"type":"nested",
-							"properties":{
-								"Type":{
-									"type":"keyword"
-								},
-								"ID":{
-									"type":"keyword"
-								}
-							}
-						},
-						"PersonTitle": {
-							"type":"text"
-						},
-						"NameSuffix": {
-							"type":"text"
-						}
-					}
-				},
-				"HeadingTerms":{
-					"type":"nested",
-					"properties":{
-						"TermVocab": {
-							"type":"keyword"
-						},
-						"HeadingTermType": {
-							"type":"keyword"
-						},
-						"Heading": {
-							"type":"nested",
-							"properties":{
-								"Text": {
-									"type" : "text"
-								},
-								"MajorTopic": {
-									"type" : "keyword"
-								},
-								"HeadingType": {
-									"type" : "keyword"
-								}
-							}
-						},
-						"HeadingQualifier": {
-							"type":"nested",
-							"properties":{
-								"Text": {
-									"type" : "text"
-								},
-								"HeadingQualifierType": {
-									"type" : "keyword"
-								}
-							}
-						},
-						"QualifierNameSubLink" : {
-							"type":"text",
-							"fields" : {
-								"keyword" : {
-									"type" : "keyword",
-									"ignore_above" : 256
-								}
+					},
+					"Title" : {
+						"type" : "text",
+						"fields" : {
+							"keyword" : {
+								"type" : "keyword",
+								"ignore_above" : 256
 							}
 						}
 					}
-				},
-				"SubjectTerms": {
-					"type": "text",
-					"fields": {
-						"keyword": {
-							"type": "keyword",
-							"ignore_above": 256
+				}
+			},
+			"Contributors":{
+				"type":"nested",
+				"properties":{
+					"Order": {
+						"type":"short"
+					},
+					"Role": {
+						"type":"keyword"
+					},
+					"NormalizedName" : {
+						"type" : "text",
+						"fields" : {
+							"keyword" : {
+								"type" : "keyword",
+								"ignore_above" : 256
+							}
+						}
+					},
+					"LastName" : {
+						"type" : "text",
+						"fields" : {
+							"keyword" : {
+								"type" : "keyword",
+								"ignore_above" : 256
+							}
+						}
+					},
+					"FirstName" : {
+						"type" : "text",
+						"fields" : {
+							"keyword" : {
+								"type" : "keyword",
+								"ignore_above" : 256
+							}
+						}
+					},
+					"EmailAddress": {
+						"type":"keyword"
+					},
+					"RefCode": {
+						"type":"nested",
+						"properties":{
+							"Type":{
+								"type":"keyword"
+							},
+							"ID":{
+								"type":"keyword"
+							}
+						}
+					},
+					"PersonTitle": {
+						"type":"text"
+					},
+					"NameSuffix": {
+						"type":"text"
+					}
+				}
+			},
+			"HeadingTerms":{
+				"type":"nested",
+				"properties":{
+					"TermVocab": {
+						"type":"keyword"
+					},
+					"HeadingTermType": {
+						"type":"keyword"
+					},
+					"Heading": {
+						"type":"nested",
+						"properties":{
+							"Text": {
+								"type" : "text"
+							},
+							"MajorTopic": {
+								"type" : "keyword"
+							},
+							"HeadingType": {
+								"type" : "keyword"
+							}
+						}
+					},
+					"HeadingQualifier": {
+						"type":"nested",
+						"properties":{
+							"Text": {
+								"type" : "text"
+							},
+							"HeadingQualifierType": {
+								"type" : "keyword"
+							}
+						}
+					},
+					"QualifierNameSubLink" : {
+						"type":"text",
+						"fields" : {
+							"keyword" : {
+								"type" : "keyword",
+								"ignore_above" : 256
+							}
 						}
 					}
-				},
-				"SubstanceTerms": {
-					"type": "nested",
-					"properties": {
-						"SubstanceName": {
-							"type" : "keyword"
-						},
-						"SubstanceNumbers": {
-							"type": "nested",
-							"properties": {
-								"Text": {
-									"type" : "keyword"
-								},
-      							"Type": {
-									"type" : "keyword"
-								}
+				}
+			},
+			"SubjectTerms": {
+				"type": "text",
+				"fields": {
+					"keyword": {
+						"type": "keyword",
+						"ignore_above": 256
+					}
+				}
+			},
+			"SubstanceTerms": {
+				"type": "nested",
+				"properties": {
+					"SubstanceName": {
+						"type" : "keyword"
+					},
+					"SubstanceNumbers": {
+						"type": "nested",
+						"properties": {
+							"Text": {
+								"type" : "keyword"
+							},
+							"Type": {
+								"type" : "keyword"
 							}
 						}
 					}

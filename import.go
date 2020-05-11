@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -16,19 +15,20 @@ import (
 	"time"
 
 	"github.com/jinzhu/configor"
+	elastic "github.com/olivere/elastic/v7"
 	"github.com/tomekwlod/emb-core/models"
 	"github.com/tomekwlod/esl"
 	"github.com/tomekwlod/utils"
 	"github.com/tomekwlod/utils/ftp"
-	elastic "gopkg.in/olivere/elastic.v6"
 )
 
 var (
 	l *log.Logger
+	e *esl.Env
 )
 
 type esConfig struct {
-	Addr       string
+	URL        string
 	Port       int
 	Index      string
 	UseSniffer bool
@@ -42,28 +42,28 @@ type basicAuth struct {
 func main() {
 	eslClient := &esl.Client{}
 	configor.Load(eslClient, "config/esl.yml")
-	e := &esl.Env{
+
+	e = &esl.Env{
 		eslClient,
 	}
-	res, err := e.SendLog(&esl.Log{
-		Domain:  "embase",
-		Command: "import",
-		Flag:    "init",
-		Data:    nil,
-	})
-	if err == nil {
-		fmt.Printf("Message sent to ESL, _id received: %s\n", res.ID)
-		// cannot use l. like below, i am not sure why
-		// l.Println("Message sent to ESL, id received: " + res.ID)
-	}
+	// res, err := e.SendLog(&esl.Log{
+	// 	Domain:  "embase",
+	// 	Command: "import",
+	// 	Flag:    "init",
+	// 	Data:    nil,
+	// })
+	// if err == nil {
+	// 	fmt.Printf("Message sent to ESL, _id received: %s\n", res.ID)
+	// 	// cannot use l. like below, i am not sure why
+	// 	// l.Println("Message sent to ESL, id received: " + res.ID)
+	// }
 
 	file, err := os.OpenFile("import.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatalln("Failed to open log file", err)
 	}
 	multi := io.MultiWriter(file, os.Stdout)
-	l := log.New(multi, "", log.Ldate|log.Ltime)
-
+	l = log.New(multi, "", log.Ldate|log.Ltime)
 	l.Println("New session")
 
 	// // loading the credentials and other FTP settings
@@ -122,7 +122,7 @@ func main() {
 	ec := esConfig{}
 	configor.Load(&ec, "config/es.yml")
 
-	if ec.Addr == "" {
+	if ec.URL == "" {
 		// Panic is better here because we also want to send an error to stderr, not only stdout+exit(1)
 		// l.Fatalln("Elasticsearch configuration couldn't be loaded")
 		l.Panicln("Elasticsearch configuration couldn't be loaded")
@@ -160,6 +160,16 @@ func main() {
 	}
 
 	l.Println("Found " + strconv.Itoa(len(list)) + " remote file(s) in " + ftpIn.Path)
+
+	// allDocsCount := 0
+	// d := map[string]interface{}{
+	// 	"docs": 0,
+	// }
+	type Da struct {
+		Docs     int
+		Diseases []string
+	}
+	d := &Da{}
 
 	// download each file, convert it to JSON and index in ES
 	for _, file := range list {
@@ -227,11 +237,15 @@ func main() {
 			newDoc.IndexedAt = time.Now()
 			newDoc.Diseases = append(newDoc.Diseases, diseaseArea)
 
-			ret, err := client.Get().Index(ec.Index).Type("doc").Id(strconv.Itoa(newDoc.ProquestID)).Do(context.Background())
+			ret, err := client.Get().Index(ec.Index).Type("_doc").Id(strconv.Itoa(newDoc.ProquestID)).Do(context.Background())
 			if err == nil {
 				// old document exists
 				var olddoc models.Document
-				json.Unmarshal(*ret.Source, &olddoc)
+
+				if err := json.Unmarshal(ret.Source, &olddoc); err != nil {
+					l.Panicln(err)
+				}
+
 				newDoc.Diseases = olddoc.Diseases
 
 				f := false
@@ -245,13 +259,20 @@ func main() {
 				}
 			}
 
-			_, err = client.Index().Index(ec.Index).Type("doc").Id(strconv.Itoa(newDoc.ProquestID)).BodyJson(newDoc).Do(context.Background())
+			_, err = client.Index().Index(ec.Index).Id(strconv.Itoa(newDoc.ProquestID)).BodyJson(newDoc).Do(context.Background())
 			if err != nil {
 				l.Panicln(err)
 			}
 
 			l.Printf(" -> indexed %d\n", newDoc.ProquestID)
 			i++
+
+			d.Docs++
+			if !utils.SliceContains(d.Diseases, diseaseArea) {
+
+				d.Diseases = append(d.Diseases, diseaseArea)
+			}
+
 			// i have to find out what is the limit for the bulk operation
 			// i might have to execute `Do` request in every eg.30000 batch
 			// req.Add(elastic.NewBulkIndexRequest().Id(strconv.Itoa(row.ProquestID)).Doc(row))
@@ -282,11 +303,13 @@ func main() {
 			l.Printf("Renaming source file from `%s` to `%s`\n", remotePath, renameTo)
 		}
 
-		// removing temp file
+		// removing temp local file
 		os.RemoveAll(targetFile)
 	}
 
-	e.SendLog(&esl.Log{Domain: "embase", Command: "import", Flag: "done", Data: nil})
+	// data := map[string]interface{}{"docsIndexed": allDocsCount}
+
+	e.SendLog(&esl.Log{Domain: "embase", Command: "import", Flag: "done", Data: d})
 	l.Print("All done\n\n")
 }
 
@@ -294,8 +317,7 @@ func newESClient(ec esConfig) (client *elastic.Client, err error) {
 	// not sure
 	errorlog := log.New(os.Stdout, "ESAPP ", log.LstdFlags)
 
-	// ip plus port plus protocol
-	addr := "http://" + ec.Addr + ":" + strconv.Itoa(ec.Port)
+	addr := ec.URL + ":" + strconv.Itoa(ec.Port)
 
 	var configs []elastic.ClientOptionFunc
 	configs = append(configs, elastic.SetURL(addr), elastic.SetErrorLog(errorlog))
